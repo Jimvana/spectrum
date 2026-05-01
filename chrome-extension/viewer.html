@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectrum .spec Viewer</title>
+
+  <!-- highlight.js theme — bundled locally, no CDN -->
+  <link rel="stylesheet" href="lib/atom-one-dark.min.css" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #1a1b26;
+      --surface:   #24283b;
+      --border:    #363b54;
+      --accent:    #7aa2f7;
+      --accent2:   #bb9af7;
+      --text:      #c0caf5;
+      --text-dim:  #565f89;
+      --ok:        #9ece6a;
+      --warn:      #e0af68;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px; line-height: 1.5; }
+
+    #app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Header ── */
+    header {
+      display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+      padding: 10px 20px; background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
+    }
+
+    .logo { display: flex; align-items: center; gap: 8px; font-weight: 700;
+      font-size: 15px; color: var(--accent); white-space: nowrap; }
+
+    #meta-filename { font-family: var(--font-mono); font-size: 13px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 320px; }
+
+    .meta-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; align-items: center; }
+
+    .pill { padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 600;
+      background: var(--bg); border: 1px solid var(--border); color: var(--text-dim); white-space: nowrap; }
+    .pill.accent  { border-color: var(--accent);  color: var(--accent); }
+    .pill.accent2 { border-color: var(--accent2); color: var(--accent2); }
+    .pill.ok      { border-color: var(--ok);   color: var(--ok); }
+    .pill.warn    { border-color: var(--warn);  color: var(--warn); }
+
+    /* ── Live / Source toggle ── */
+    #view-toggle { display: none; gap: 2px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 6px; padding: 2px; }
+    .toggle-btn { padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 600;
+      border: none; cursor: pointer; background: transparent; color: var(--text-dim); transition: all 0.15s; }
+    .toggle-btn.active { background: var(--accent); color: #1a1b26; }
+    .toggle-btn:not(.active):hover { color: var(--text); }
+
+    /* ── Copy button ── */
+    #copy-btn { margin-left: 4px; padding: 4px 14px; border-radius: 6px;
+      background: var(--accent); color: #1a1b26; font-size: 12px; font-weight: 700;
+      border: none; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; flex-shrink: 0; }
+    #copy-btn:hover { opacity: 0.85; }
+
+    /* ── States ── */
+    #loading, #error {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 48px 24px; gap: 16px;
+    }
+    #loading { color: var(--text-dim); }
+    .spinner { width: 40px; height: 40px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-name { color: var(--text); font-family: var(--font-mono); font-size: 13px; }
+    #error { color: #f7768e; }
+    #error-icon { font-size: 40px; }
+    #error-title { font-size: 18px; font-weight: 700; }
+    #error-body { white-space: pre-wrap; font-family: var(--font-mono); font-size: 12px;
+      color: var(--text-dim); max-width: 600px; text-align: center; }
+
+    /* ── Result ── */
+    #result { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+
+    /* Live iframe — null origin (no allow-same-origin), so it has no
+       inherited CSP and external resources like Google Fonts load freely */
+    #live-iframe { display: none; flex: 1; width: 100%; border: none; background: #fff; }
+
+    /* Source code */
+    #code-wrap { flex: 1; overflow: auto; display: none; }
+    pre { margin: 0; background: var(--bg) !important; padding: 20px 24px; min-height: 100%; }
+    pre code.hljs { background: transparent !important; font-family: var(--font-mono) !important;
+      font-size: 13px !important; line-height: 1.65 !important; tab-size: 4; }
+    pre code:not(.hljs) { font-family: var(--font-mono); font-size: 13px; line-height: 1.65;
+      color: var(--text); white-space: pre; }
+  </style>
+</head>
+
+<body>
+<div id="app">
+
+  <header>
+    <div class="logo">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect width="4" height="4" x="0"  y="0"  fill="#f7768e"/>
+        <rect width="4" height="4" x="4"  y="0"  fill="#e0af68"/>
+        <rect width="4" height="4" x="8"  y="0"  fill="#9ece6a"/>
+        <rect width="4" height="4" x="12" y="0"  fill="#7aa2f7"/>
+        <rect width="4" height="4" x="16" y="0"  fill="#bb9af7"/>
+        <rect width="4" height="4" x="0"  y="4"  fill="#e0af68"/>
+        <rect width="4" height="4" x="4"  y="4"  fill="#9ece6a"/>
+        <rect width="4" height="4" x="8"  y="4"  fill="#7aa2f7"/>
+        <rect width="4" height="4" x="12" y="4"  fill="#bb9af7"/>
+        <rect width="4" height="4" x="16" y="4"  fill="#f7768e"/>
+        <rect width="4" height="4" x="0"  y="8"  fill="#9ece6a"/>
+        <rect width="4" height="4" x="4"  y="8"  fill="#7aa2f7"/>
+        <rect width="4" height="4" x="8"  y="8"  fill="#bb9af7"/>
+        <rect width="4" height="4" x="12" y="8"  fill="#f7768e"/>
+        <rect width="4" height="4" x="16" y="8"  fill="#e0af68"/>
+        <rect width="20" height="8" x="0" y="12" fill="#24283b"/>
+      </svg>
+      Spectrum
+    </div>
+
+    <span id="meta-filename">—</span>
+
+    <div id="view-toggle">
+      <button class="toggle-btn active" id="live-btn">Live</button>
+      <button class="toggle-btn"        id="source-btn">Source</button>
+    </div>
+
+    <div class="meta-pills">
+      <span class="pill accent"  id="meta-lang">—</span>
+      <span class="pill"         id="meta-tokens">—</span>
+      <span class="pill"         id="meta-orig">—</span>
+      <span class="pill accent2" id="meta-ratio">—</span>
+      <span class="pill"         id="meta-cksum" title="">—</span>
+      <span class="pill"         id="meta-dictv">—</span>
+      <button id="copy-btn">Copy source</button>
+    </div>
+  </header>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Decoding <span id="loading-name"></span></p>
+    <p style="font-size:11px;color:var(--text-dim)">Fetch → zlib → token IDs → source</p>
+  </div>
+
+  <div id="error" style="display:none">
+    <div id="error-icon">⚠</div>
+    <div id="error-title">Error</div>
+    <pre id="error-body"></pre>
+  </div>
+
+  <div id="result">
+    <!--
+      allow-scripts but NOT allow-same-origin → null origin.
+      Null origin = no inherited CSP from the extension page, so external
+      resources (Google Fonts etc.) in the decoded HTML work normally,
+      and the inlined JS runs without restriction.
+    -->
+    <iframe id="live-iframe"
+            sandbox="allow-scripts allow-forms allow-popups allow-modals"></iframe>
+
+    <div id="code-wrap">
+      <pre><code id="source-code"></code></pre>
+    </div>
+  </div>
+
+</div>
+
+<!-- dictionary.js: plain global script (LANGUAGE_NAMES etc. for status pills) -->
+<script src="dictionary.js"></script>
+
+<!-- highlight.js: bundled locally — no CDN, no CSP issues -->
+<script src="lib/highlight.min.js"></script>
+<script src="lib/python.min.js"></script>
+<script src="lib/xml.min.js"></script>
+<script src="lib/javascript.min.js"></script>
+<script src="lib/css.min.js"></script>
+
+<!-- viewer.js: ES module, imports spec-decoder.js -->
+<script type="module" src="viewer.js"></script>
+
+</body>
+</html>

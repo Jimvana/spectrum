@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Spectrum .spec Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #1a1b26;
+      --surface:  #24283b;
+      --border:   #363b54;
+      --accent:   #7aa2f7;
+      --accent2:  #bb9af7;
+      --text:     #c0caf5;
+      --muted:    #565f89;
+      --ok:       #9ece6a;
+      --warn:     #e0af68;
+      --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    }
+
+    body {
+      width: 300px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-text {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+    }
+
+    .logo-sub {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    /* ── Main ── */
+    .body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+    /* Drop zone / open button */
+    .drop-zone {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 24px 16px;
+      border: 1.5px dashed var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(122, 162, 247, 0.06);
+    }
+
+    .drop-icon { font-size: 28px; line-height: 1; }
+
+    .drop-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .drop-hint {
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .open-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 18px;
+      border-radius: 20px;
+      background: var(--accent);
+      color: #1a1b26;
+      font-size: 12px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .open-btn:hover { opacity: 0.85; }
+
+    /* Hidden real file input */
+    #file-input { display: none; }
+
+    /* ── Recent files ── */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .recent-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .recent-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color 0.15s;
+      overflow: hidden;
+    }
+    .recent-item:hover { border-color: var(--accent); }
+
+    .recent-icon { font-size: 14px; flex-shrink: 0; }
+
+    .recent-info { overflow: hidden; flex: 1; }
+
+    .recent-name {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .recent-meta {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    .recent-delete {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: color 0.15s;
+    }
+    .recent-delete:hover { color: #f7768e; }
+
+    .no-recent {
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+      padding: 8px 0;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      font-size: 10px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .footer a { color: var(--muted); text-decoration: none; }
+    .footer a:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <svg width="28" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <rect width="4" height="4" x="0"  y="0"  fill="#f7768e"/>
+      <rect width="4" height="4" x="4"  y="0"  fill="#e0af68"/>
+      <rect width="4" height="4" x="8"  y="0"  fill="#9ece6a"/>
+      <rect width="4" height="4" x="12" y="0"  fill="#7aa2f7"/>
+      <rect width="4" height="4" x="16" y="0"  fill="#bb9af7"/>
+      <rect width="4" height="4" x="0"  y="4"  fill="#e0af68"/>
+      <rect width="4" height="4" x="4"  y="4"  fill="#9ece6a"/>
+      <rect width="4" height="4" x="8"  y="4"  fill="#7aa2f7"/>
+      <rect width="4" height="4" x="12" y="4"  fill="#bb9af7"/>
+      <rect width="4" height="4" x="16" y="4"  fill="#f7768e"/>
+      <rect width="4" height="4" x="0"  y="8"  fill="#9ece6a"/>
+      <rect width="4" height="4" x="4"  y="8"  fill="#7aa2f7"/>
+      <rect width="4" height="4" x="8"  y="8"  fill="#bb9af7"/>
+      <rect width="4" height="4" x="12" y="8"  fill="#f7768e"/>
+      <rect width="4" height="4" x="16" y="8"  fill="#e0af68"/>
+      <rect width="20" height="8" x="0" y="12" fill="#24283b"/>
+    </svg>
+    <div>
+      <div class="logo-text">Spectrum</div>
+      <div class="logo-sub">.spec file viewer</div>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="body">
+
+    <!-- Drop zone -->
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-icon">📂</div>
+      <div class="drop-label">Open a .spec file</div>
+      <div class="drop-hint">Click to browse, or drag &amp; drop here</div>
+      <button class="open-btn" id="open-btn">Browse files</button>
+    </div>
+    <input type="file" id="file-input" accept=".spec" />
+
+    <!-- Recent files -->
+    <div id="recent-section">
+      <div class="section-label">Recent</div>
+      <div class="recent-list" id="recent-list"></div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>Spectrum Algo · dict v10</span>
+    <span>234,957 tokens</span>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
